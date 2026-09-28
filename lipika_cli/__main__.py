@@ -1,4 +1,4 @@
-"""Entry point for ``python -m lipika_cli``; handles --version."""
+"""Entry point for ``python -m lipika_cli``; handles --version and the REPL."""
 
 import sys
 
@@ -8,11 +8,13 @@ VERSION_TEXT = f"lipika {__version__}"
 
 
 def main() -> None:
-    """Dispatch: --version prints and exits; full CLI arrives in Phase 4."""
+    """Dispatch: --version prints and exits; otherwise run the REPL."""
     if "--version" in sys.argv[1:]:
         print(VERSION_TEXT)
         return
-    raise SystemExit("lipika: non-interactive mode is not implemented yet (Phase 4).")
+    from lipika_cli.repl import Repl
+
+    Repl().run()
 
 
 if __name__ == "__main__":

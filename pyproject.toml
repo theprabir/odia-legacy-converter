@@ -7,7 +7,11 @@ name = "lipika-cli"
 version = "0.1.0"
 description = "Terminal wrapper for the Lipika Odia converter engine (Unicode, Akruti, Sreelipi)."
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+  "rich>=13",
+  "prompt_toolkit>=3.0",
+  "pyperclip>=1.8",
+]
 
 [project.scripts]
 lipika = "lipika_cli.cli:main"
