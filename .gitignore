@@ -1,6 +1,7 @@
 # --- Private agent/design docs ---
 AGENTS.md
 ARCHITECTURE.md
+.freebuff/
 
 # --- Python ---
 __pycache__/

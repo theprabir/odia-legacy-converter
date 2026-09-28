@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lipika-cli"
+version = "0.1.0"
+description = "Terminal wrapper for the Lipika Odia converter engine (Unicode, Akruti, Sreelipi)."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+lipika = "lipika_cli.cli:main"
+
+[tool.setuptools]
+packages = ["lipika_cli"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["converter_engine"]
+
+[tool.ruff.lint]
+extend-select = ["I"]
