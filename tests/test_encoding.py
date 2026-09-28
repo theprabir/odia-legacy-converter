@@ -6,8 +6,9 @@ import pytest
 
 from lipika_cli.encoding import (
     decode_legacy,
-    encode_legacy,
+    encode_legacy_strict,
     sanitize_for_display,
+    unencodable_characters,
 )
 
 # Verified engine behaviour (phase 1 probing): fixed-mode u2a substitutes
@@ -34,18 +35,25 @@ class TestSanitizeForDisplay:
 
 class TestEncodeLegacy:
     def test_cp1252_ok_for_ascii_legacy(self):
-        rep = encode_legacy("IWÿò@û", "cp1252")
+        rep = encode_legacy_strict("IWÿò@û", "cp1252")
         assert rep.data.decode("cp1252") == "IWÿò@û"
-        assert rep.replaced == []
+        assert rep.unencodable == []
 
     def test_latin1_encodes_c1(self):
-        rep = encode_legacy("a\x8fb", "latin-1")
+        rep = encode_legacy_strict("a\x8fb", "latin-1")
         assert rep.data == b"a\x8fb"
 
     def test_c1_not_encodable_as_cp1252_raises(self):
         # §9.3: never substitute silently -> strict encode surfaces the problem.
         with pytest.raises(UnicodeEncodeError):
-            encode_legacy("a\x8fb", "cp1252")
+            encode_legacy_strict("a\x8fb", "cp1252")
+
+    def test_unencodable_characters_reported_distinct(self):
+        bad = unencodable_characters("a\x8fb\x8fc\x9d", "cp1252")
+        assert bad == ["\x8f", "\x9d"]
+
+    def test_unencodable_characters_empty_when_encodable(self):
+        assert unencodable_characters("IWÿò@û", "cp1252") == []
 
 
 class TestDecodeLegacy:

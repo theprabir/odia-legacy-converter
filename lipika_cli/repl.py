@@ -14,7 +14,8 @@ from prompt_toolkit.styles import Style
 
 from lipika_cli import commands, ui
 from lipika_cli.engine import Result, convert
-from lipika_cli.modes import DEFAULT_COMMAND, Mode, get_mode
+from lipika_cli.modes import DEFAULT_COMMAND, U2A, Mode, get_mode
+from lipika_cli.save import SaveOutcome, save_result, save_result_substituting
 
 try:  # clipboard is optional; degrade gracefully (§3)
     import pyperclip
@@ -32,6 +33,7 @@ class ReplState:
     mode_command: str = DEFAULT_COMMAND
     fixed: bool = False
     last_result: Result | None = None
+    pending_save_path: str | None = None  # set after an unencodable /save
     scrollback: list[str] = field(default_factory=list)
 
     @property
@@ -122,6 +124,13 @@ class Repl:
         self.state.scrollback.append(rendered)
 
     def _handle_submit(self, raw: str) -> None:
+        # A pending /save confirmation eats the next input entirely.
+        if self.state.pending_save_path is not None:
+            path = self.state.pending_save_path
+            self.state.pending_save_path = None
+            self._finish_save(raw.strip(), path)
+            return
+
         parsed = commands.parse(raw)
 
         if isinstance(parsed, commands.Ignore):
@@ -163,18 +172,67 @@ class Repl:
             self.state.scrollback.clear()
             self.state.scrollback.append(capture(ui.render_banner))
         elif cmd.name == "/fix":
-            self.state.fixed = not self.state.fixed
-            if self.state.mode.engine_fn != "convert_text":
-                self._append_scrollback(
-                    "note: glyph fix only affects Unicode → Akruti (/u2a)\n"
-                )
-            self._append_scrollback(f"fix: {'on' if self.state.fixed else 'off'}\n")
+            self._toggle_fix()
         elif cmd.name == "/copy":
             self._copy_last()
         elif cmd.name == "/save":
-            self._append_scrollback("note: /save arrives in Phase 3\n")
+            self._save_last(cmd.arg)
         else:  # pragma: no cover - registry keeps this unreachable
             raise AssertionError(f"unhandled command {cmd.name}")
+
+    def _toggle_fix(self) -> None:
+        self.state.fixed = not self.state.fixed
+        if self.state.mode.engine_fn != U2A:
+            self._append_scrollback(
+                "note: glyph fix only affects Unicode → Akruti (/u2a)\n"
+            )
+        self._append_scrollback(f"fix: {'on' if self.state.fixed else 'off'}\n")
+
+    # ------------------------------------------------------ /save
+
+    def _save_last(self, arg: str | None) -> None:
+        result = self.state.last_result
+        if result is None:
+            self._append_scrollback("error: nothing to save yet - convert first\n")
+            return
+
+        outcome = save_result(result, arg)
+        if outcome.ok:
+            self._append_scrollback(self._save_ok_message(outcome))
+            return
+
+        # §9.3: report count + characters, then offer '?'-substitution.
+        assert outcome.unencodable is not None and outcome.encoding is not None
+        chars = ", ".join(f"{ch!r}" for ch in outcome.unencodable)
+        self._append_scrollback(
+            f"warning: {len(outcome.unencodable)} character(s) cannot be "
+            f"encoded as {outcome.encoding}: {chars}\n"
+        )
+        self._append_scrollback(
+            "warning: file NOT written. Reply y to replace them with '?', "
+            "or anything else to cancel\n"
+        )
+        self.state.pending_save_path = str(outcome.path) if outcome.path else None
+
+    def _finish_save(self, answer: str, path: str) -> None:
+        """Complete a pending /save after the user answered the warning."""
+        result = self.state.last_result
+        assert result is not None  # pending path implies a result exists
+        if answer.lower() not in ("y", "yes"):
+            self._append_scrollback("save cancelled - nothing written\n")
+            return
+        outcome = save_result_substituting(result, path)
+        self._append_scrollback(self._save_ok_message(outcome))
+
+    def _save_ok_message(self, outcome: SaveOutcome) -> str:
+        assert outcome.path is not None and outcome.encoding is not None
+        msg = f"saved: {outcome.path} ({outcome.encoding})"
+        if outcome.unencodable:
+            chars = ", ".join(f"{ch!r}" for ch in outcome.unencodable)
+            msg += f" - {len(outcome.unencodable)} character(s) written as '?': {chars}"
+        return msg + "\n"
+
+    # ------------------------------------------------------ /copy
 
     def _copy_last(self) -> None:
         result = self.state.last_result
@@ -192,10 +250,10 @@ class Repl:
             self._append_scrollback(f"error: clipboard copy failed: {exc}\n")
             return
         msg = "copied"
-        if self.state.fixed and result.mode.engine_fn == "convert_text":
+        if result.fixed and result.mode.engine_fn == U2A:
             msg += (
-                " - warning: fixed-mode C1 glyphs may be stripped by the "
-                "clipboard; /save (Phase 3) is lossless"
+                " - warning: fixed-mode C1 glyphs are often stripped by the "
+                "clipboard; /save is lossless"
             )
         self._append_scrollback(msg + "\n")
 
@@ -205,11 +263,6 @@ class Repl:
         self._quit_requested = False
         self.state.scrollback.append(capture(ui.render_banner))
         self.app = self._build_app()
-
-        @self.app.key_bindings.add("enter", eager=True)
-        def _quit_check(event) -> None:  # type: ignore[no-untyped-def]
-            pass
-
         self.app.run()
 
 

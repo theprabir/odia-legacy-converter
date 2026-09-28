@@ -11,27 +11,45 @@ _UNDEFINED_CP1252 = frozenset("\x81\x8d\x8f\x90\x9d")
 
 @dataclass(frozen=True)
 class EncodeReport:
-    """Outcome of encoding a legacy string."""
+    """Outcome of encoding a legacy string for saving."""
 
     data: bytes
-    replaced: list[str]  # characters substituted with '?'
-    warned: bool = False  # True once the caller has been told about `replaced`
+    unencodable: list[str]  # distinct characters that could not be encoded
+    substituted: bool  # True when unencodable chars were written as '?'
 
 
-def encode_legacy(text: str, encoding: str) -> EncodeReport:
-    """Encode text for saving; unencodable characters are reported, not replaced.
+def encode_legacy_strict(text: str, encoding: str) -> EncodeReport:
+    """Encode without any substitution.
 
-    Never substitutes silently: on failure, `replaced` lists the offending
-    characters and the caller decides what to do (see §9.3).
+    Raises UnicodeEncodeError if `text` is not encodable; callers that want a
+    file anyway must follow up with `encode_legacy_substituting` after
+    reporting the offending characters (§9.3: never substitute silently).
     """
     data = text.encode(encoding, errors="strict")
-    return EncodeReport(data=data, replaced=[])
+    return EncodeReport(data=data, unencodable=[], substituted=False)
 
 
-def encode_legacy_after_warning(text: str, encoding: str) -> EncodeReport:
-    """Second-pass encode after the caller has warned; unencodable -> '?'."""
+def unencodable_characters(text: str, encoding: str) -> list[str]:
+    """Distinct characters of `text` that `encoding` cannot represent."""
+    bad: list[str] = []
+    for ch in text:
+        try:
+            ch.encode(encoding)
+        except UnicodeEncodeError:
+            if ch not in bad:
+                bad.append(ch)
+    return bad
+
+
+def encode_legacy_substituting(text: str, encoding: str) -> EncodeReport:
+    """Encode with '?' in place of unencodable characters.
+
+    Only call after the caller has surfaced a warning listing
+    `unencodable_characters` (§9.3).
+    """
+    bad = unencodable_characters(text, encoding)
     data = text.encode(encoding, errors="replace")
-    return EncodeReport(data=data, replaced=[], warned=True)
+    return EncodeReport(data=data, unencodable=bad, substituted=bool(bad))
 
 
 def decode_legacy(data: bytes) -> str:

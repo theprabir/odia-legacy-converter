@@ -17,7 +17,10 @@ dependencies = [
 lipika = "lipika_cli.cli:main"
 
 [tool.setuptools]
-packages = ["lipika_cli"]
+packages = ["lipika_cli", "converter_engine"]
+
+[tool.setuptools.package-data]
+converter_engine = ["*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
