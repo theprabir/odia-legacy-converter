@@ -136,20 +136,31 @@ class Repl:
             return ANSI("".join(self.state.scrollback))
 
         scrollback_window = Window(
-            FormattedTextControl(_scrollback), always_hide_cursor=True
+            content=FormattedTextControl(_scrollback),
+            wrap_lines=True,
+            always_hide_cursor=True,
+            # Pin the view to the bottom so new output stays visible.
+            get_vertical_scroll=lambda window: max(
+                0,
+                (window.content.line_count or 0)
+                - window.render_info.window_height,
+            ),
         )
         input_window = Window(
             content=self._buffer_control(),
             height=lambda: max(2, self._buffer.document.line_count + 1),
+            dont_extend_height=True,
         )
         toolbar = Window(
             FormattedTextControl(self._toolbar_text),
             height=1,
+            dont_extend_height=True,
             always_hide_cursor=True,
         )
         root = HSplit([scrollback_window, input_window, toolbar])
+        self._scrollback_window = scrollback_window
         return Application(
-            layout=Layout(root),
+            layout=Layout(root, focused_element=input_window),
             key_bindings=kb,
             style=Style([("class", "reverse")]),
             full_screen=False,
@@ -177,6 +188,9 @@ class Repl:
             text = self._buffer.text
             self._buffer.reset()
             self._handle_submit(text)
+            self._scroll_to_bottom()
+            if self._quit_requested:
+                event.app.exit()
 
         @kb.add("c-j")
         def _newline(event) -> None:  # type: ignore[no-untyped-def]
@@ -192,6 +206,12 @@ class Repl:
             event.app.exit()
 
         return kb
+
+    def _scroll_to_bottom(self) -> None:
+        """Invalidate so the get_vertical_scroll pin takes effect immediately."""
+        app = getattr(self, "app", None)
+        if app is not None and app.render_counter is not None:
+            app.invalidate()
 
     # ---------------------------------------------------- handling
 
@@ -223,6 +243,12 @@ class Repl:
                 " - type h for help\n"
             )
             return
+        if isinstance(parsed, commands.Command) and parsed.name in (
+            "/quit",
+            "/exit",
+        ):
+            self._quit_requested = True
+            return
 
         if isinstance(parsed, commands.Command):
             self._run_command(parsed)
@@ -250,12 +276,15 @@ class Repl:
         elif cmd.name == "/clear":
             self.state.scrollback.clear()
             self._append(self._capture(banner_fn()))
+            self._scroll_to_bottom()
         elif cmd.name == "/fix":
             self._toggle_fix()
         elif cmd.name == "/copy":
             self._copy_last()
         elif cmd.name == "/save":
             self._save_last(cmd.arg)
+        elif cmd.name in commands.QUIT_COMMANDS:
+            self._quit_requested = True
         else:  # pragma: no cover - registry keeps this unreachable
             raise AssertionError(f"unhandled command {cmd.name}")
 
