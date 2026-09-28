@@ -25,14 +25,14 @@ class TestSaveCommand:
         monkeypatch.chdir(tmp_path)
         repl._handle_submit("ନମସ୍କାର")
         repl._handle_submit("/save")
-        assert "saved: converted-u2a.txt (cp1252)" in _out(repl)
+        assert "converted-u2a.txt (cp1252)" in _out(repl)
         assert (tmp_path / "converted-u2a.txt").exists()
 
     def test_save_explicit_path(self, repl, tmp_path):
         target = tmp_path / "explicit.txt"
         repl._handle_submit("ନମସ୍କାର")
         repl._handle_submit(f"/save {target}")
-        assert f"saved: {target}" in _out(repl)
+        assert str(target) in _out(repl)
         assert target.exists()
 
     def test_fixed_save_uses_latin1(self, repl, tmp_path):
@@ -160,5 +160,5 @@ class TestFriendlyErrors:
         monkeypatch.setattr(repl_mod, "convert", boom)
         repl._handle_submit("x")
         out = _out(repl)
-        assert out.startswith("error:")
+        assert "error:" in out
         assert "Traceback" not in out

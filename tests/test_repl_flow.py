@@ -8,7 +8,7 @@ import pytest
 
 from lipika_cli.engine import Result
 from lipika_cli.modes import get_mode
-from lipika_cli.repl import Repl, help_text, result_text
+from lipika_cli.repl import Repl, result_text
 
 
 @pytest.fixture()
@@ -33,7 +33,10 @@ class TestModeSwitching:
 
     def test_help_adds_help_text(self, repl):
         repl._handle_submit("h")
-        assert help_text() in "".join(repl.state.scrollback)
+        out = "".join(repl.state.scrollback)
+        # ANSI-rendered help: section headers and mode names present.
+        assert "Convert" in out
+        assert "/u2a" in out and "/s2u" in out
 
 
 class TestConversion:

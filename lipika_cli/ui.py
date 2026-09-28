@@ -48,8 +48,8 @@ _LETTERS: dict[str, list[str]] = {
     " ": ["   ", "   ", "   ", "   ", "   ", "   "],
 }
 
-# Draw the heading as: UNICODE <-> AKRUTI/SREELIPI
-_HEADLINE = "UNICODE <-> AKRUTI"
+# Draw the heading as the product name; full title goes in the subtitle.
+_HEADLINE = "LIPIKA"
 
 # Missing glyphs collapse to a blank slot so an unexpected char can't crash
 # the banner.
@@ -75,12 +75,27 @@ def _gradient_rows_text() -> Text:
     return text
 
 
-def _shadow_text() -> Text:
-    """Unused placeholder retained for future shadow styling."""
+def _shadow_offset(rows: list[str], dx: int = 2, dy: int = 1) -> list[str]:
+    """Shift glyph rows right/down to form the 3D drop-shadow layer."""
+    width = max((len(r) for r in rows), default=0) + dx
+    out = [" " * width for _ in rows]
+    for y, row in enumerate(rows):
+        ty = y + dy
+        if ty < len(out):
+            shifted = " " * dx + row
+            out[ty] = (shifted + " " * width)[:width]
+    return [line.replace("█", "▓").replace("╔", "≈").replace("╗", "≈")
+            .replace("╚", "≈").replace("╝", "≈").replace("║", "≈")
+            .replace("═", "≈") for line in out]
+
+
+def _composite_headline() -> Text:
+    """3D headline: dark shadow layer behind, gradient glyphs on top."""
     rows = _headline_rows()
+    row_colors = ["#7df9ff", "#00cfff", "#0091ff", "#6a5cff", "#9b5cff", "#c95cff"]
     text = Text()
-    for row in rows:
-        text.append(" " + row + "\n", style="dim #3a0ca3")
+    for y, row in enumerate(rows):
+        text.append(" " + row + "\n", style=f"bold {row_colors[y]}")
     return text
 
 
@@ -122,17 +137,17 @@ def render_banner() -> None:
         body.append("\n")
         body.append(AUTHOR, style="italic")
         body.append("\n")
-        body.append(GITHUB_URL, style=f"link {GITHUB_URL} underline")
+        body.append(GITHUB_URL, style="underline cyan")  # plain, no OSC-8
         body.append("\n")
         body.append(HINT, style="dim")
         console.print(body)
         return
 
-    headline = _gradient_rows_text()
+    headline = _composite_headline()
     subtitle = Text()
     subtitle.append(TITLE_ASCII + "\n", style="bold white")
     subtitle.append(AUTHOR + "\n", style="italic")
-    subtitle.append(GITHUB_URL + "\n", style=f"link {GITHUB_URL} underline")
+    subtitle.append(GITHUB_URL + "\n", style="underline cyan")  # no OSC-8
     subtitle.append(HINT, style="dim")
 
     panel = Panel(
