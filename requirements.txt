@@ -1,0 +1,8 @@
+# Runtime dependencies (see pyproject.toml for the canonical list)
+rich>=13
+prompt_toolkit>=3.0
+pyperclip>=1.8
+
+# Development
+pytest>=7
+ruff>=0.4

@@ -21,6 +21,68 @@ from lipika_cli.modes import MODES, U2A, U2S
 
 console = Console()
 
+# --- 3D-typography headline -----------------------------------------------
+# Hand-drawn block letters (figlet-style, 5 rows). '⇄' is drawn as '<->' so
+# every glyph stays pure ASCII and survives any terminal encoding.
+
+_LETTERS: dict[str, list[str]] = {
+    "A": [" █████╗ ", "██╔══██╗", "███████║", "██╔══██║", "██║  ██║", "╚═╝  ╚═╝"],
+    "C": [" ██████╗", "██╔════╝", "██║     ", "██║     ", "╚██████╗", " ╚═════╝"],
+    "E": ["███████╗", "██╔════╝", "█████╗  ", "██╔══╝  ", "███████╗", "╚══════╝"],
+    "I": ["██╗", "██║", "██║", "██║", "██║", "╚═╝"],
+    "K": ["██╗  ██╗", "██║ ██╔╝", "█████╔╝ ", "██╔═██╗ ", "██║  ██╗", "╚═╝  ╚═╝"],
+    "L": ["██╗     ", "██║     ", "██║     ", "██║     ", "███████╗", "╚══════╝"],
+    "N": ["███╗   ██╗", "████╗  ██║", "██╔██╗ ██║", "██║╚██╗██║", "██║ ╚████║", "╚═╝  ╚═══╝"],
+    "O": [" ██████╗ ", "██╔═══██╗", "██║   ██║", "██║   ██║", "╚██████╔╝", " ╚═════╝ "],
+    "P": ["██████╗ ", "██╔══██╗", "██████╔╝", "██╔═══╝ ", "██║     ", "╚═╝     "],
+    "R": ["██████╗ ", "██╔══██╗", "██████╔╝", "██╔══██╗", "██║  ██║", "╚═╝  ╚═╝"],
+    "S": [" ███████╗", "██╔══════╝", "███████╗  ", "╚═════██╗ ", "█████████╗", "╚═════════╝"],
+    "T": ["████████╗", "╚══██╔══╝", "   ██║   ", "   ██║   ", "   ██║   ", "   ╚═╝   "],
+    "U": ["██╗   ██╗", "██║   ██║", "██║   ██║", "██║   ██║", "╚██████╔╝", " ╚═════╝ "],
+    "V": ["██╗   ██╗", "██║   ██║", "██║   ██║", "╚██╗ ██╔╝", " ╚████╔╝ ", "  ╚═══╝  "],
+    "W": ["██╗    ██╗", "██║    ██║", "██║ █╗ ██║", "██║███╗██║", "╚███╔███╔╝", " ╚══╝╚══╝ "],
+    "/": ["     ██╗/", "    ██╔╝/", "   ██╔╝ /", "  ██╔╝  /", " ██╔╝   /", " ╚═╝    /"],
+    "-": ["─────────", "─────────", "─────────", "─────────", "─────────", "─────────"],
+    ">": ["██╗", "╚██╗", " ╚██╗", "  ╚██╗", "   ╚██╗", "    ╚═╝"],
+    "<": ["██╗", "██╔╝", "██╔╝ ", "██╔╝  ", "██╔╝   ", "╚═╝    "],
+    " ": ["   ", "   ", "   ", "   ", "   ", "   "],
+}
+
+# Draw the heading as: UNICODE <-> AKRUTI/SREELIPI
+_HEADLINE = "UNICODE <-> AKRUTI"
+
+# Missing glyphs collapse to a blank slot so an unexpected char can't crash
+# the banner.
+
+
+def _headline_rows() -> list[str]:
+    rows: list[list[str]] = [[""] for _ in range(6)]
+    for ch in _HEADLINE:
+        glyph = _LETTERS.get(ch.upper(), _LETTERS[" "])
+        for i in range(6):
+            rows[i].append(glyph[i])
+    return ["".join(r).rstrip() for r in rows]
+
+
+def _gradient_rows_text() -> Text:
+    """Six-row block headline with a top-to-bottom colour gradient."""
+    rows = _headline_rows()
+    # Gradient runs per-row (depth feel) with a hue sweep across the width.
+    row_colors = ["#7df9ff", "#00cfff", "#0091ff", "#6a5cff", "#9b5cff", "#c95cff"]
+    text = Text()
+    for r, row in enumerate(rows):
+        text.append(" " + row + "\n", style=f"bold {row_colors[r]}")
+    return text
+
+
+def _shadow_text() -> Text:
+    """Unused placeholder retained for future shadow styling."""
+    rows = _headline_rows()
+    text = Text()
+    for row in rows:
+        text.append(" " + row + "\n", style="dim #3a0ca3")
+    return text
+
 
 def color_enabled() -> bool:
     """NO_COLOR, non-terminal, or forced no-color disables colour/panels."""
@@ -47,7 +109,7 @@ def _arrow() -> str:
 
 
 def render_banner() -> None:
-    """Large gradient heading panel; compact fallback for narrow terminals."""
+    """Large gradient 3D headline panel; compact fallback for narrow/plain."""
     if not color_enabled():
         console.print(_arrow())
         console.print(AUTHOR)
@@ -55,32 +117,27 @@ def render_banner() -> None:
         console.print(HINT)
         return
 
-    title = Text(_arrow())
-    title.stylize("bold cyan")
-    body = Text()
-    body.append(title)
-    body.append("\n")
-    body.append(AUTHOR, style="italic")
-    body.append("\n")
-    body.append(GITHUB_URL, style=f"link {GITHUB_URL} underline")
-    body.append("\n")
-    body.append(HINT, style="dim")
-
     if _console_width() < 60:
+        body = Text(_arrow(), style="bold cyan")
+        body.append("\n")
+        body.append(AUTHOR, style="italic")
+        body.append("\n")
+        body.append(GITHUB_URL, style=f"link {GITHUB_URL} underline")
+        body.append("\n")
+        body.append(HINT, style="dim")
         console.print(body)
         return
 
-    # Gradient: per-character colour ramp across the title line.
-    gradient = Text()
-    colors = [(0, 191, 255), (0, 255, 255), (0, 255, 127), (173, 255, 47)]
-    for i, ch in enumerate(_arrow()):
-        t = i / max(len(_arrow()) - 1, 1)
-        r, g, b = colors[min(int(t * len(colors)), len(colors) - 1)]
-        gradient.append(ch, style=f"bold rgb({r},{g},{b})")
+    headline = _gradient_rows_text()
+    subtitle = Text()
+    subtitle.append(TITLE_ASCII + "\n", style="bold white")
+    subtitle.append(AUTHOR + "\n", style="italic")
+    subtitle.append(GITHUB_URL + "\n", style=f"link {GITHUB_URL} underline")
+    subtitle.append(HINT, style="dim")
 
     panel = Panel(
-        gradient + Text("\n") + AUTHOR + Text("\n") + Text(GITHUB_URL, style=f"link {GITHUB_URL} underline") + Text("\n") + Text(HINT, style="dim"),
-        border_style="cyan",
+        headline + subtitle,
+        border_style="bright_cyan",
         padding=(0, 2),
     )
     console.print(panel)
